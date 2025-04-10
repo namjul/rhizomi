@@ -4,6 +4,35 @@ import fs from "fs";
 import os from "os";
 import { marked } from "marked";
 
+// parse wikilinks
+marked.use({
+  extensions: [{
+    name: 'wikilink',
+    level: 'inline', // Can be 'block' or 'inline'
+    start(src) {
+      return src.indexOf('[[');
+    },
+    renderer(token) {
+      return `<a href="${token.href}">${token.text}</a>`;
+    },
+    tokenizer(src) {
+      const match = /^\[\[([^|\]#]+)(?:#[^\]]*)?(?:\|([^\]]+))?\]\]/gm.exec(src);
+      if (match) {
+        const href = match[1].trim()
+        const text = (match[2] ?? match[1]).trim()
+        const token = {
+          type: 'wikilink',
+          raw: match[0],
+          href,
+          text,
+          tokens: [],
+        }
+        return token
+      }
+    },
+  }]
+});
+
 function serveHTML(content: string, status: number) {
   return new Response(content, {
     status: status,
