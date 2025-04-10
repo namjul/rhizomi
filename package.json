@@ -1,0 +1,16 @@
+{
+  "name": "rhizomi",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "marked": "^15.0.8",
+    "type-fest": "^4.39.1"
+  }
+}
