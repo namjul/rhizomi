@@ -37,13 +37,13 @@ marked.use({
       return src.indexOf('[[');
     },
     renderer(token) {
-      return `<a href="${token.href}">${token.text}</a>`;
+      return `<a href="${token['href']}">${token['text']}</a>`;
     },
     tokenizer(src) {
       const match = /^\[\[([^|\]#]+)(?:#[^\]]*)?(?:\|([^\]]+))?\]\]/gm.exec(src);
       if (match) {
-        const href = match[1].trim()
-        const text = (match[2] ?? match[1]).trim()
+        const href = match[1]?.trim()
+        const text = (match[2] ?? match[1])?.trim()
         const token = {
           type: 'wikilink',
           raw: match[0],
@@ -53,6 +53,7 @@ marked.use({
         }
         return token
       }
+      return undefined
     },
   }]
 });
@@ -111,17 +112,15 @@ function documentHandler(dir: string) {
     if (!realpath.endsWith(".md")) {
       realpath = `${realpath}.md`;
     }
-    let x;
     try {
       const content = Bun.file(realpath)
-      x = await content.text()
-
+      const document = await content.text()
+      const htmlContent = await marked(document); // Convert markdown to HTML
+      return serveHTML(htmlContent, 200);
     } catch (err) {
       return undefined
     }
 
-    const htmlContent = await marked(x); // Convert markdown to HTML
-    return serveHTML(htmlContent, 200);
   };
 }
 
@@ -144,9 +143,12 @@ function lookup(dir: string) {
   const handlers = [lookupDocument, lookupAsset]
   return async (req: Request) => {
     for (let i = 0; i < handlers.length; i++) {
-      const resp = await handlers[i](req)
-      if (resp) {
-        return resp
+      const handler = handlers[i]
+      if (handler) {
+        const resp = await handler(req)
+        if (resp) {
+          return resp
+        }
       }
     }
     return new Response("Not Found", { status: 404 });
