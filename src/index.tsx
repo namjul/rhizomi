@@ -4,6 +4,8 @@ import os from "os";
 import { marked } from "marked";
 import type { Tagged } from 'type-fest';
 import { renderToReadableStream } from "react-dom/server";
+import { compile, optimize } from '@tailwindcss/node'
+import { Scanner } from '@tailwindcss/oxide'
 
 import { Layout } from './components/+Layout';
 
@@ -164,13 +166,41 @@ function lookup(dir: string) {
   }
 }
 
+// https://github.com/tailwindlabs/tailwindcss/blob/main/packages/%40tailwindcss-cli/src/commands/build/index.ts
+async function tailwindcss() {
+  const style = Bun.file("./src/index.css")
+  const text = await style.text()
+  const base = path.resolve(__dirname, "./components")
+  const compiler = await compile(text, {
+    base,
+    onDependency: () => {}
+  })
+
+  const sources = [{ base, pattern: '**/*', negated: false }]
+  const scanner = new Scanner({ sources })
+  const candidates = scanner.scan()
+
+  const css = compiler.build(candidates)
+
+  let optimizedCss = optimize(css, {
+    minify: true,
+  })
+
+  return optimizedCss
+
+}
+
+const PORT = 8080
 
 serve({
+  routes: {
+    "/index.css": new Response(await tailwindcss())
+  },
   fetch: lookup(`${os.homedir()}/Dropbox/memex`),
-  port: 8080
+  port: PORT
 });
 
-console.log(`Server running on http://localhost:8080`);
+console.log(`Server running on http://localhost:${PORT}`);
 
 
 //- Error logging with a specified log file.
