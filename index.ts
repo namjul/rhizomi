@@ -1,8 +1,32 @@
 import { serve, } from "bun";
 import path from "path";
-import fs from "fs";
 import os from "os";
 import { marked } from "marked";
+import type { Tagged } from 'type-fest';
+
+type Asset = Tagged<{
+  path: string;      // Path to the asset file on the server
+  mimeType: string;  // MIME type of the asset (e.g., "image/png", "text/css")
+  size?: number;     // Optional size of the asset in bytes
+  lastModified?: Date; // Optional last modified date
+  data?: Bun.BunFile; // Optional data for in-memory processing
+}, 'Asset'>;
+
+async function createAsset(filePath: string): Promise<Asset> {
+  const file = Bun.file(filePath);
+
+  // Get the stats of the file to extract size and last modified time
+  const stats = await file.stat();
+
+  return {
+    path: filePath,
+    mimeType: file.type, // Automatically inferred mime type
+    size: stats.size,
+    lastModified: new Date(stats.mtimeMs),
+    data: file
+  } as Asset;
+}
+
 
 // parse wikilinks
 marked.use({
@@ -43,6 +67,29 @@ function serveHTML(content: string, status: number) {
   });
 }
 
+function serveAsset(asset: Asset, status: number) {
+
+  const headers = new Headers();
+
+  headers.set("Content-Type", asset.mimeType);
+
+  if (asset.size !== undefined) {
+    headers.set("Content-Length", asset.size.toString());
+  }
+
+  if (asset.lastModified) {
+    headers.set("Last-Modified", asset.lastModified.toUTCString());
+  }
+
+  headers.set("Cache-Control", "max-age=3600"); // Example cache control, adjust as needed
+  headers.set("Content-Disposition", `inline; filename="${asset.path.split('/').pop()}"`);
+
+  return new Response(asset.data, {
+    status: status,
+    headers,
+  });
+}
+
 function resolvePath(dir: string, urlPath: string) {
 
   // Remove `..` to prevent directory traversal
@@ -54,33 +101,63 @@ function resolvePath(dir: string, urlPath: string) {
   // Join with the base directory
   let fullPath = path.join(dir, potentialPath);
 
-
-  if (!fullPath.endsWith(".md")) {
-    return `${fullPath}.md`;
-  }
   return fullPath;
 }
 
 function documentHandler(dir: string) {
   return async (req: Request) => {
     const path = new URL(req.url).pathname;
-    const realpath = resolvePath(dir, path);
-    let content;
+    let realpath = resolvePath(dir, path);
+    if (!realpath.endsWith(".md")) {
+      realpath = `${realpath}.md`;
+    }
+    let x;
     try {
-      content = await fs.promises.readFile(realpath, "utf-8");
+      const content = Bun.file(realpath)
+      x = await content.text()
+
     } catch (err) {
-      console.log(err);
-      return new Response("Not Found", { status: 404 });
+      return undefined
     }
 
-    const htmlContent = await marked(content); // Convert markdown to HTML
+    const htmlContent = await marked(x); // Convert markdown to HTML
     return serveHTML(htmlContent, 200);
   };
 }
 
+function assetHandler(dir: string) {
+  return async (req: Request) => {
+    const path = new URL(req.url).pathname;
+    let realpath = resolvePath(dir, path);
+    try {
+      const asset = await createAsset(realpath)
+      return serveAsset(asset, 200)
+    } catch (err) {
+      return undefined
+    }
+  };
+}
+
+function lookup(dir: string) {
+  const lookupAsset = assetHandler(dir)
+  const lookupDocument = documentHandler(dir)
+  const handlers = [lookupDocument, lookupAsset]
+  return async (req: Request) => {
+    for (let i = 0; i < handlers.length; i++) {
+      const resp = await handlers[i](req)
+      if (resp) {
+        return resp
+      }
+    }
+    return new Response("Not Found", { status: 404 });
+  }
+}
 
 
-serve({ fetch: documentHandler(`${os.homedir()}/Dropbox/memex`), port: 8080 });
+serve({
+  fetch: lookup(`${os.homedir()}/Dropbox/memex`),
+  port: 8080
+});
 
 console.log(`Server running on http://localhost:8080`);
 
