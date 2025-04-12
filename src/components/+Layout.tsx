@@ -13,7 +13,11 @@ export const Layout: FunctionComponent<Props> = (props: Props) => (
       <title>rhizome</title>
       <link rel="stylesheet" href="/index.css" />
     </head>
-    <body className="p-0" dangerouslySetInnerHTML={{ __html: props.children }}>
+    <body>
+      <main className="container mx-auto mt-10">
+        <article className="prose max-w-none" dangerouslySetInnerHTML={{ __html: props.children }}>
+        </article>
+      </main>
     </body>
   </html>
 )
