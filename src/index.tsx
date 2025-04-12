@@ -3,6 +3,9 @@ import path from "path";
 import os from "os";
 import { marked } from "marked";
 import type { Tagged } from 'type-fest';
+import { renderToReadableStream } from "react-dom/server";
+
+import { Layout } from './components/+Layout';
 
 type Asset = Tagged<{
   path: string;      // Path to the asset file on the server
@@ -58,8 +61,14 @@ marked.use({
   }]
 });
 
-function serveHTML(content: string, status: number) {
-  return new Response(content, {
+async function serveHTML(content: string, status: number) {
+  const x = (<Layout>
+    {content}
+  </Layout>)
+  const stream = await renderToReadableStream(
+      x
+    );
+  return new Response(stream, {
     status: status,
     headers: {
       'Content-Type': 'text/html; charset=utf-8',

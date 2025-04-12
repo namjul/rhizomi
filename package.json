@@ -6,17 +6,21 @@
   "main": "src/index.tsx",
   "module": "src/index.tsx",
   "scripts": {
-    "watch": "bun run src/index.ts --watch",
+    "watch": "bun run --watch src/index.tsx",
     "lint": "echo 'not implemented'",
     "typecheck": "tsc --noEmit",
     "check": "bun run lint && bun run typecheck"
   },
   "devDependencies": {
-    "@types/bun": "latest",
-    "typescript": "^5",
-    "type-fest": "^4.39.1"
+    "@types/bun": "^1.2.9",
+    "@types/react": "^19.1.1",
+    "@types/react-dom": "^19.1.2",
+    "type-fest": "^4.39.1",
+    "typescript": "^5"
   },
   "dependencies": {
-    "marked": "^15.0.8"
+    "marked": "^15.0.8",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   }
 }
