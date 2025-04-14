@@ -17,6 +17,7 @@
     "@types/bun": "^1.2.9",
     "@types/react": "^19.1.1",
     "@types/react-dom": "^19.1.2",
+    "daisyui": "^5.0.19",
     "type-fest": "^4.39.1",
     "typescript": "^5"
   },
