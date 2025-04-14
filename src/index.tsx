@@ -1,13 +1,24 @@
-import { serve, } from "bun";
-import path from "path";
+import { serve } from "bun";
+import { access } from "node:fs/promises";
 import os from "os";
+import path from "path";
 import { marked } from "marked";
-import type { Tagged } from 'type-fest';
+import type { Tagged, Entries, Entry } from 'type-fest';
 import { renderToReadableStream } from "react-dom/server";
 import { compile, optimize } from '@tailwindcss/node'
 import { Scanner } from '@tailwindcss/oxide'
+import { Layout } from './components/Layout';
+import { Init } from "./components/Init";
+import type { ReactNode } from "react";
 
-import { Layout } from './components/+Layout';
+function resolveTildePath(filePath: string) {
+  if (!filePath || !filePath.startsWith('~')) {
+    return filePath;
+  }
+  return path.join(os.homedir(), filePath.slice(1));
+}
+
+let contentDir: string | undefined 
 
 type Asset = Tagged<{
   path: string;      // Path to the asset file on the server
@@ -63,18 +74,16 @@ marked.use({
   }]
 });
 
-async function serveHTML(content: string, status: number) {
-  const x = (<Layout>
-    {content}
-  </Layout>)
+async function serveHTML(content: ReactNode, status: number) {
   const stream = await renderToReadableStream(
-      x
-    );
+    <Layout>
+      {content}
+    </Layout>
+  );
   return new Response(stream, {
     status: status,
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
-      'Content-Length': String(content.length),
     },
   });
 }
@@ -107,8 +116,8 @@ function resolvePath(dir: string, urlPath: string) {
   // Remove `..` to prevent directory traversal
   const sanitizedPath = urlPath.replace(/\.\./g, '');
 
-  // Default to "readme.md" if root path is requested
-  let potentialPath = sanitizedPath === '/' ? 'readme.md' : sanitizedPath;
+  // Default to "readme" if root path is requested
+  let potentialPath = sanitizedPath === '/' ? 'readme' : sanitizedPath;
 
   // Join with the base directory
   let fullPath = path.join(dir, potentialPath);
@@ -116,8 +125,9 @@ function resolvePath(dir: string, urlPath: string) {
   return fullPath;
 }
 
-function documentHandler(dir: string) {
+function documentHandler(dir: string | undefined) {
   return async (req: Request) => {
+    if (!dir) return undefined
     const path = new URL(req.url).pathname;
     let realpath = resolvePath(dir, path);
     if (!realpath.endsWith(".md")) {
@@ -127,7 +137,9 @@ function documentHandler(dir: string) {
       const content = Bun.file(realpath)
       const document = await content.text()
       const htmlContent = await marked(document); // Convert markdown to HTML
-      return serveHTML(htmlContent, 200);
+      return serveHTML(
+        <article className="prose max-w-none" dangerouslySetInnerHTML={{ __html: htmlContent }} />
+        , 200);
     } catch (err) {
       return undefined
     }
@@ -135,8 +147,35 @@ function documentHandler(dir: string) {
   };
 }
 
-function assetHandler(dir: string) {
+function parseCookies(req: Request): Record<string, string> {
+  const cookieHeader = req.headers.get('Cookie');
+
+  const cookieHeaderList = cookieHeader?.split('; ').map(cookie => {
+    const [name, ...value] = cookie.split('=');
+    return [name, value.join('=')];
+  })
+
+  return Object.fromEntries(cookieHeaderList ?? []);
+}
+
+function checkContentHandler() {
   return async (req: Request) => {
+    const cookieContentDir = parseCookies(req)['contentDir'] ?? ""
+    const fullPath = resolveTildePath(atob(cookieContentDir))
+    contentDir = fullPath
+
+    if (!contentDir) {
+      return serveHTML(
+        <Init />
+        , 200);
+    }
+    return undefined
+  };
+}
+
+function assetHandler(dir: string | undefined) {
+  return async (req: Request) => {
+    if (!dir) return undefined
     const path = new URL(req.url).pathname;
     let realpath = resolvePath(dir, path);
     try {
@@ -148,13 +187,13 @@ function assetHandler(dir: string) {
   };
 }
 
-function lookup(dir: string) {
-  const lookupAsset = assetHandler(dir)
-  const lookupDocument = documentHandler(dir)
-  const handlers = [lookupDocument, lookupAsset]
+
+function lookup() {
+
+  const handlers = [checkContentHandler, assetHandler, documentHandler]
   return async (req: Request) => {
     for (let i = 0; i < handlers.length; i++) {
-      const handler = handlers[i]
+      const handler = handlers[i]?.(contentDir)
       if (handler) {
         const resp = await handler(req)
         if (resp) {
@@ -166,7 +205,6 @@ function lookup(dir: string) {
   }
 }
 
-const contentDir = path.resolve(os.homedir(), 'Dropbox/memex')
 
 // https://github.com/tailwindlabs/tailwindcss/blob/main/packages/%40tailwindcss-cli/src/commands/build/index.ts
 async function tailwindcss() {
@@ -175,10 +213,15 @@ async function tailwindcss() {
   const base = path.resolve(__dirname, "./components")
   const compiler = await compile(text, {
     base,
-    onDependency: () => {}
+    onDependency: () => { }
   })
 
-  const sources = [{ base, pattern: '**/*', negated: false }, {  base: contentDir, pattern: '**/*', negated: false }]
+  const sources = [{ base, pattern: '**/*', negated: false }]
+
+  if (contentDir) {
+    sources.push({ base: contentDir, pattern: '**/*', negated: false })
+  }
+  
   const scanner = new Scanner({ sources })
   const candidates = scanner.scan()
 
@@ -196,9 +239,22 @@ const PORT = 8080
 
 serve({
   routes: {
-    "/index.css": new Response(await tailwindcss())
+    "/index.css": new Response(await tailwindcss()),
+    //"/settings/contentDir/:contentDir": {
+    //  async POST(req) {
+    //    const fullPath = resolveTildePath(atob(req.params.contentDir))
+    //    const file = Bun.file(fullPath);
+    //    const stats = await file.stat()
+    //    stats.isDirectory()
+    //    if (stats.isDirectory()) {
+    //      contentDir = fullPath
+    //    }
+    //
+    //    return Response.redirect("/", 200,);
+    //  }
+    //}
   },
-  fetch: lookup(contentDir),
+  fetch: lookup(),
   port: PORT
 });
 
@@ -208,7 +264,7 @@ console.log(`Server running on http://localhost:${PORT}`);
  * Features:
  * - git based
  * - sqlite tracking
- * - 
+ * -
  */
 
 //- Error logging with a specified log file.
