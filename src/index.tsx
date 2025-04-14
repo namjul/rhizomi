@@ -166,6 +166,8 @@ function lookup(dir: string) {
   }
 }
 
+const contentDir = path.resolve(os.homedir(), 'Dropbox/memex')
+
 // https://github.com/tailwindlabs/tailwindcss/blob/main/packages/%40tailwindcss-cli/src/commands/build/index.ts
 async function tailwindcss() {
   const style = Bun.file("./src/index.css")
@@ -176,7 +178,7 @@ async function tailwindcss() {
     onDependency: () => {}
   })
 
-  const sources = [{ base, pattern: '**/*', negated: false }]
+  const sources = [{ base, pattern: '**/*', negated: false }, {  base: contentDir, pattern: '**/*', negated: false }]
   const scanner = new Scanner({ sources })
   const candidates = scanner.scan()
 
@@ -196,12 +198,18 @@ serve({
   routes: {
     "/index.css": new Response(await tailwindcss())
   },
-  fetch: lookup(`${os.homedir()}/Dropbox/memex`),
+  fetch: lookup(contentDir),
   port: PORT
 });
 
 console.log(`Server running on http://localhost:${PORT}`);
 
+/**
+ * Features:
+ * - git based
+ * - sqlite tracking
+ * - 
+ */
 
 //- Error logging with a specified log file.
 //- Command-line flag parsing for configurable options (address, template, etc.).
