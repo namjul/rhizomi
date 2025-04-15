@@ -1,15 +1,15 @@
 import { serve } from "bun";
-import { access } from "node:fs/promises";
 import os from "os";
 import path from "path";
 import { marked } from "marked";
-import type { Tagged, Entries, Entry } from 'type-fest';
+import type { Tagged } from 'type-fest';
 import { renderToReadableStream } from "react-dom/server";
 import { compile, optimize } from '@tailwindcss/node'
 import { Scanner } from '@tailwindcss/oxide'
 import { Layout } from './components/Layout';
 import { Init } from "./components/Init";
 import type { ReactNode } from "react";
+import { Navbar } from "./components/Navbar";
 
 function resolveTildePath(filePath: string) {
   if (!filePath || !filePath.startsWith('~')) {
@@ -76,9 +76,7 @@ marked.use({
 
 async function serveHTML(content: ReactNode, status: number) {
   const stream = await renderToReadableStream(
-    <Layout>
-      {content}
-    </Layout>
+    content
   );
   return new Response(stream, {
     status: status,
@@ -138,7 +136,12 @@ function documentHandler(dir: string | undefined) {
       const document = await content.text()
       const htmlContent = await marked(document); // Convert markdown to HTML
       return serveHTML(
-        <article className="prose max-w-none" dangerouslySetInnerHTML={{ __html: htmlContent }} />
+        <Layout>
+          <Navbar />
+          <main className="mx-auto container px-8 mt-10">
+            <article className="prose max-w-none" dangerouslySetInnerHTML={{ __html: htmlContent }} />
+          </main>
+        </Layout>
         , 200);
     } catch (err) {
       return undefined
@@ -248,30 +251,15 @@ async function tailwindcss() {
 
 }
 
-const PORT = 8080
-
-serve({
+const server = serve({
   routes: {
     "/index.css": new Response(await tailwindcss()),
-    //"/settings/contentDir/:contentDir": {
-    //  async POST(req) {
-    //    const fullPath = resolveTildePath(atob(req.params.contentDir))
-    //    const file = Bun.file(fullPath);
-    //    const stats = await file.stat()
-    //    stats.isDirectory()
-    //    if (stats.isDirectory()) {
-    //      contentDir = fullPath
-    //    }
-    //
-    //    return Response.redirect("/", 200,);
-    //  }
-    //}
   },
   fetch: lookup(),
-  port: PORT
+  development: process.env.NODE_ENV !== "production",
 });
 
-console.log(`Server running on http://localhost:${PORT}`);
+console.log(`🚀 Server running at ${server.url}`);
 
 /**
  * Features:

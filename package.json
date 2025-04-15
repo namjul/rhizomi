@@ -3,11 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "src/index.tsx",
-  "module": "src/index.tsx",
+  "main": "src/main.tsx",
+  "module": "src/main.tsx",
   "scripts": {
-    "watch": "bun run --watch src/index.tsx",
-    "build": "bun build --compile --external=lightningcss  --minify --sourcemap ./src/index.tsx --outfile rhizomi",
+    "dev": "bun run --hot src/main.tsx",
+    "build": "NODE_ENV=production bun build --compile --external=lightningcss  --minify --sourcemap ./src/main.tsx --outfile rhizomi",
     "lint": "echo 'not implemented'",
     "typecheck": "tsc --noEmit",
     "check": "bun run lint && bun run typecheck"

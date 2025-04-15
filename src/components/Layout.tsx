@@ -16,9 +16,7 @@ export const Layout: FunctionComponent<Props> = (props: Props) => (
       <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
     </head>
     <body>
-      <main className="container mx-auto mt-10">
-        {props.children}
-      </main>
+      {props.children}
     </body>
   </html>
 )
