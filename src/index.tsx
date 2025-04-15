@@ -173,6 +173,20 @@ function checkContentHandler() {
   };
 }
 
+function publicHandler(dir: string | undefined) {
+  return async (req: Request) => {
+    if (!dir) return undefined
+    const urlPath = new URL(req.url).pathname;
+    let realpath = resolvePath(path.resolve(__dirname, "../public"), urlPath);
+    try {
+      const asset = await createAsset(realpath)
+      return serveAsset(asset, 200)
+    } catch (err) {
+      return undefined
+    }
+  };
+}
+
 function assetHandler(dir: string | undefined) {
   return async (req: Request) => {
     if (!dir) return undefined
@@ -189,8 +203,7 @@ function assetHandler(dir: string | undefined) {
 
 
 function lookup() {
-
-  const handlers = [checkContentHandler, assetHandler, documentHandler]
+  const handlers = [checkContentHandler, publicHandler, assetHandler, documentHandler]
   return async (req: Request) => {
     for (let i = 0; i < handlers.length; i++) {
       const handler = handlers[i]?.(contentDir)
