@@ -18,6 +18,7 @@
     "@types/react": "^19.1.1",
     "@types/react-dom": "^19.1.2",
     "daisyui": "^5.0.19",
+    "ts-extras": "^0.14.0",
     "type-fest": "^4.39.1",
     "typescript": "^5"
   },
