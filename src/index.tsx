@@ -223,7 +223,7 @@ function lookup() {
 async function tailwindcss() {
   const style = Bun.file("./src/index.css")
   const text = await style.text()
-  const base = path.resolve(__dirname, "./components")
+  const base = path.resolve(__dirname, "./")
   const compiler = await compile(text, {
     base,
     onDependency: () => { }
