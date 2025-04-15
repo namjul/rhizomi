@@ -262,6 +262,15 @@ const server = serve({
 console.log(`🚀 Server running at ${server.url}`);
 
 /**
+ * next
+ * - https://react.dev/reference/react-dom/server/renderToReadableStream#rendering-a-react-tree-as-html-to-a-readable-web-stream
+ *   - example 
+ *     - https://github.com/bunstack-js/bunstack/
+ *   - discussions 
+ *     - https://github.com/oven-sh/bun/discussions/5816
+ */
+
+/**
  * Features:
  * - git based
  * - sqlite tracking
