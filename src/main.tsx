@@ -224,7 +224,7 @@ function lookup() {
 
 // https://github.com/tailwindlabs/tailwindcss/blob/main/packages/%40tailwindcss-cli/src/commands/build/index.ts
 async function tailwindcss() {
-  const style = Bun.file("./src/index.css")
+  const style = Bun.file("./src/styles.css")
   const text = await style.text()
   const base = path.resolve(__dirname, "./")
   const compiler = await compile(text, {
@@ -253,7 +253,7 @@ async function tailwindcss() {
 
 const server = serve({
   routes: {
-    "/index.css": new Response(await tailwindcss()),
+    "/styles.css": new Response(await tailwindcss()),
   },
   fetch: lookup(),
   development: process.env.NODE_ENV !== "production",

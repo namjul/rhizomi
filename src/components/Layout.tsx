@@ -12,7 +12,7 @@ export const Layout: FunctionComponent<Props> = (props: Props) => (
       <meta httpEquiv="X-UA-Compatible" content="ie=edge" />
       <title>rhizome</title>
       <link rel="icon" href="/favicon.ico" type="image/x-icon" />
-      <link rel="stylesheet" href="/index.css" />
+      <link rel="stylesheet" href="/styles.css" />
       <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
     </head>
     <body>
