@@ -6,10 +6,9 @@ import type { Tagged } from 'type-fest';
 import { renderToReadableStream } from "react-dom/server";
 import { compile, optimize } from '@tailwindcss/node'
 import { Scanner } from '@tailwindcss/oxide'
-import { Layout } from './components/Layout';
 import { Init } from "./components/Init";
 import type { ReactNode } from "react";
-import { Navbar } from "./components/Navbar";
+import { Page } from './components/Page';
 
 function resolveTildePath(filePath: string) {
   if (!filePath || !filePath.startsWith('~')) {
@@ -18,7 +17,7 @@ function resolveTildePath(filePath: string) {
   return path.join(os.homedir(), filePath.slice(1));
 }
 
-let contentDir: string | undefined 
+let contentDir: string | undefined
 
 type Asset = Tagged<{
   path: string;      // Path to the asset file on the server
@@ -74,9 +73,13 @@ marked.use({
   }]
 });
 
-async function serveHTML(content: ReactNode, status: number) {
+async function serveHTML({ content, data }: { content: ReactNode, data: any | undefined }, status: number) {
   const stream = await renderToReadableStream(
-    content
+    content,
+    {
+      bootstrapScriptContent: `window.content = ${JSON.stringify(data)};`,
+      bootstrapModules: ['/main.js']
+    }
   );
   return new Response(stream, {
     status: status,
@@ -136,12 +139,10 @@ function documentHandler(dir: string | undefined) {
       const document = await content.text()
       const htmlContent = await marked(document); // Convert markdown to HTML
       return serveHTML(
-        <Layout>
-          <Navbar />
-          <main className="mx-auto container px-8 mt-10">
-            <article className="prose max-w-none" dangerouslySetInnerHTML={{ __html: htmlContent }} />
-          </main>
-        </Layout>
+        {
+          content: <Page content={ htmlContent } />,
+          data: htmlContent
+        }
         , 200);
     } catch (err) {
       return undefined
@@ -169,7 +170,7 @@ function checkContentHandler() {
 
     if (!contentDir) {
       return serveHTML(
-        <Init />
+        { content: <Init />, data: undefined }
         , 200);
     }
     return undefined
@@ -237,7 +238,7 @@ async function tailwindcss() {
   if (contentDir) {
     sources.push({ base: contentDir, pattern: '**/*', negated: false })
   }
-  
+
   const scanner = new Scanner({ sources })
   const candidates = scanner.scan()
 
@@ -251,24 +252,36 @@ async function tailwindcss() {
 
 }
 
+function buildFrontend() {
+  return async () => {
+    const result = await Bun.build({
+      entrypoints: [path.resolve(__dirname, "./frontend.tsx")],
+    })
+    return new Response(await result.outputs[0]?.text(),
+      {
+        headers: {
+          "Content-Type": "application/javascript",
+          // 1week
+          //"Cache-Control":
+          //  process.env.NODE_ENV === "production"
+          //    ? `public, max-age=${week}`
+          //    : "no-cache",
+        },
+      }
+    )
+  }
+}
+
 const server = serve({
   routes: {
     "/styles.css": new Response(await tailwindcss()),
+    "/main.js": buildFrontend()
   },
   fetch: lookup(),
   development: process.env.NODE_ENV !== "production",
 });
 
 console.log(`🚀 Server running at ${server.url}`);
-
-/**
- * next
- * - https://react.dev/reference/react-dom/server/renderToReadableStream#rendering-a-react-tree-as-html-to-a-readable-web-stream
- *   - example 
- *     - https://github.com/bunstack-js/bunstack/
- *   - discussions 
- *     - https://github.com/oven-sh/bun/discussions/5816
- */
 
 /**
  * Features:
