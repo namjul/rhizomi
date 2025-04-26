@@ -1,3 +1,5 @@
+"use server-entry";
+
 import { type FunctionComponent } from 'react';
 
 type Props = {};

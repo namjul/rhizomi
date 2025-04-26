@@ -1,21 +1,9 @@
-import { serve } from "bun";
-import os from "os";
 import path from "path";
-import { marked } from "marked";
 import type { Tagged } from 'type-fest';
-import { renderToReadableStream } from "react-dom/server";
 import { compile, optimize } from '@tailwindcss/node'
 import { Scanner } from '@tailwindcss/oxide'
-import { Init } from "./components/Init";
-import type { ReactNode } from "react";
-import { Page } from './components/Page';
-
-function resolveTildePath(filePath: string) {
-  if (!filePath || !filePath.startsWith('~')) {
-    return filePath;
-  }
-  return path.join(os.homedir(), filePath.slice(1));
-}
+import { resolvePath } from './utils';
+import { documentHandler } from './wire';
 
 let contentDir: string | undefined
 
@@ -43,51 +31,22 @@ async function createAsset(filePath: string): Promise<Asset> {
 }
 
 
-// parse wikilinks
-marked.use({
-  extensions: [{
-    name: 'wikilink',
-    level: 'inline', // Can be 'block' or 'inline'
-    start(src) {
-      return src.indexOf('[[');
-    },
-    renderer(token) {
-      return `<a href="${token['href']}">${token['text']}</a>`;
-    },
-    tokenizer(src) {
-      const match = /^\[\[([^|\]#]+)(?:#[^\]]*)?(?:\|([^\]]+))?\]\]/gm.exec(src);
-      if (match) {
-        const href = match[1]?.trim()
-        const text = (match[2] ?? match[1])?.trim()
-        const token = {
-          type: 'wikilink',
-          raw: match[0],
-          href,
-          text,
-          tokens: [],
-        }
-        return token
-      }
-      return undefined
-    },
-  }]
-});
 
-async function serveHTML({ content, data }: { content: ReactNode, data: any | undefined }, status: number) {
-  const stream = await renderToReadableStream(
-    content,
-    {
-      bootstrapScriptContent: `window.content = ${JSON.stringify(data)};`,
-      bootstrapModules: ['/main.js']
-    }
-  );
-  return new Response(stream, {
-    status: status,
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-    },
-  });
-}
+//async function serveHTML({ content, data }: { content: ReactNode, data: any | undefined }, status: number) {
+//  const stream = await renderToReadableStream(
+//    content,
+//    {
+//      bootstrapScriptContent: `window.content = ${JSON.stringify(data)};`,
+//      bootstrapModules: ['/main.js']
+//    }
+//  );
+//  return new Response(stream, {
+//    status: status,
+//    headers: {
+//      'Content-Type': 'text/html; charset=utf-8',
+//    },
+//  });
+//}
 
 function serveAsset(asset: Asset, status: number) {
 
@@ -110,71 +69,6 @@ function serveAsset(asset: Asset, status: number) {
     status: status,
     headers,
   });
-}
-
-function resolvePath(dir: string, urlPath: string) {
-
-  // Remove `..` to prevent directory traversal
-  const sanitizedPath = urlPath.replace(/\.\./g, '');
-
-  // Default to "readme" if root path is requested
-  let potentialPath = sanitizedPath === '/' ? 'readme' : sanitizedPath;
-
-  // Join with the base directory
-  let fullPath = path.join(dir, potentialPath);
-
-  return fullPath;
-}
-
-function documentHandler(dir: string | undefined) {
-  return async (req: Request) => {
-    if (!dir) return undefined
-    const path = new URL(req.url).pathname;
-    let realpath = resolvePath(dir, path);
-    if (!realpath.endsWith(".md")) {
-      realpath = `${realpath}.md`;
-    }
-    try {
-      const content = Bun.file(realpath)
-      const document = await content.text()
-      const htmlContent = await marked(document); // Convert markdown to HTML
-      return serveHTML(
-        {
-          content: <Page content={ htmlContent } />,
-          data: htmlContent
-        }
-        , 200);
-    } catch (err) {
-      return undefined
-    }
-
-  };
-}
-
-function parseCookies(req: Request): Record<string, string> {
-  const cookieHeader = req.headers.get('Cookie');
-
-  const cookieHeaderList = cookieHeader?.split('; ').map(cookie => {
-    const [name, ...value] = cookie.split('=');
-    return [name, value.join('=')];
-  })
-
-  return Object.fromEntries(cookieHeaderList ?? []);
-}
-
-function checkContentHandler() {
-  return async (req: Request) => {
-    const cookieContentDir = parseCookies(req)['contentDir'] ?? ""
-    const fullPath = resolveTildePath(atob(cookieContentDir))
-    contentDir = fullPath
-
-    if (!contentDir) {
-      return serveHTML(
-        { content: <Init />, data: undefined }
-        , 200);
-    }
-    return undefined
-  };
 }
 
 function publicHandler(dir: string | undefined) {
@@ -206,11 +100,13 @@ function assetHandler(dir: string | undefined) {
 }
 
 
+type Handler = (_dir: string | undefined, setDir?: (dir: string | undefined) => void | undefined) => (req: Request) => Promise<Response | undefined>
+
 function lookup() {
-  const handlers = [checkContentHandler, publicHandler, assetHandler, documentHandler]
+  const handlers: Handler[] = [publicHandler, assetHandler, documentHandler]
   return async (req: Request) => {
     for (let i = 0; i < handlers.length; i++) {
-      const handler = handlers[i]?.(contentDir)
+      const handler = handlers[i]?.(contentDir, (dir) => { contentDir = dir })
       if (handler) {
         const resp = await handler(req)
         if (resp) {
@@ -225,7 +121,7 @@ function lookup() {
 
 // https://github.com/tailwindlabs/tailwindcss/blob/main/packages/%40tailwindcss-cli/src/commands/build/index.ts
 async function tailwindcss() {
-  const style = Bun.file("./src/styles.css")
+  const style = Bun.file(path.resolve(__dirname, "./styles.css"))
   const text = await style.text()
   const base = path.resolve(__dirname, "./")
   const compiler = await compile(text, {
@@ -245,37 +141,32 @@ async function tailwindcss() {
   const css = compiler.build(candidates)
 
   let optimizedCss = optimize(css, {
-    minify: true,
+    minify: false,
   })
 
   return optimizedCss
-
 }
 
-function buildFrontend() {
+function buildTailwindcss() {
   return async () => {
-    const result = await Bun.build({
-      entrypoints: [path.resolve(__dirname, "./frontend.tsx")],
+    return new Response(await tailwindcss(), {
+      headers: {
+        'Content-Type': 'text/css',
+      },
     })
-    return new Response(await result.outputs[0]?.text(),
-      {
-        headers: {
-          "Content-Type": "application/javascript",
-          // 1week
-          //"Cache-Control":
-          //  process.env.NODE_ENV === "production"
-          //    ? `public, max-age=${week}`
-          //    : "no-cache",
-        },
-      }
-    )
   }
 }
 
-const server = serve({
+
+const server = Bun.serve({
   routes: {
-    "/styles.css": new Response(await tailwindcss()),
-    "/main.js": buildFrontend()
+    "/styles.css": buildTailwindcss(),
+    "/client/*": async (req) => {
+      const pathname = new URL(req.url).pathname;
+      //console.log("pathname", pathname, Object.keys(routes));
+      //return new Response("testkj:w");
+      return new Response(Bun.file(path.resolve(__dirname, '../dist' + pathname)));
+    }
   },
   fetch: lookup(),
   development: process.env.NODE_ENV !== "production",
