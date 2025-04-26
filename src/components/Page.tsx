@@ -1,23 +1,15 @@
-"use server-entry";
-
-import '../frontend';
-
 import { type FunctionComponent } from 'react';
 import { Layout } from './Layout';
 import { Navbar } from "./Navbar";
-import { Counter } from './Counter';
 
-type Props = {};
+type Props = { content: string };
 
-export const Page: FunctionComponent<Props> = () => {
-  return (
+export const Page: FunctionComponent<Props> = (props) => (
   <Layout>
     <Navbar />
     <main className="mx-auto container px-8 mt-10">
-      <article className="prose max-w-none" dangerouslySetInnerHTML={{ __html: "hier" }} />
-      <p>Here is a client component: <Counter /></p>
+      <article className="prose max-w-none" dangerouslySetInnerHTML={{ __html: props.content }} />
     </main>
   </Layout>
 )
-}
 
