@@ -6,7 +6,6 @@ import type { Tagged } from 'type-fest';
 import { renderToReadableStream } from "react-dom/server";
 import { compile, optimize } from '@tailwindcss/node'
 import { Scanner } from '@tailwindcss/oxide'
-import { Init } from "./components/Init";
 import type { ReactNode } from "react";
 import { Page } from './components/Page';
 
@@ -17,7 +16,7 @@ function resolveTildePath(filePath: string) {
   return path.join(os.homedir(), filePath.slice(1));
 }
 
-let contentDir: string | undefined
+let contentDir: string | undefined = resolveTildePath("~/Dropbox/memex")
 
 type Asset = Tagged<{
   path: string;      // Path to the asset file on the server
@@ -162,20 +161,20 @@ function parseCookies(req: Request): Record<string, string> {
   return Object.fromEntries(cookieHeaderList ?? []);
 }
 
-function checkContentHandler() {
-  return async (req: Request) => {
-    const cookieContentDir = parseCookies(req)['contentDir'] ?? ""
-    const fullPath = resolveTildePath(atob(cookieContentDir))
-    contentDir = fullPath
-
-    if (!contentDir) {
-      return serveHTML(
-        { content: <Init />, data: undefined }
-        , 200);
-    }
-    return undefined
-  };
-}
+//function checkContentHandler() {
+//  return async (req: Request) => {
+//    const cookieContentDir = parseCookies(req)['contentDir'] ?? ""
+//    const fullPath = resolveTildePath(atob(cookieContentDir))
+//    contentDir = fullPath
+//
+//    if (!contentDir) {
+//      return serveHTML(
+//        { content: <Init />, data: undefined }
+//        , 200);
+//    }
+//    return undefined
+//  };
+//}
 
 function publicHandler(dir: string | undefined) {
   return async (req: Request) => {
@@ -207,7 +206,7 @@ function assetHandler(dir: string | undefined) {
 
 
 function lookup() {
-  const handlers = [checkContentHandler, publicHandler, assetHandler, documentHandler]
+  const handlers = [publicHandler, assetHandler, documentHandler]
   return async (req: Request) => {
     for (let i = 0; i < handlers.length; i++) {
       const handler = handlers[i]?.(contentDir)
