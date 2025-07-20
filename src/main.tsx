@@ -15,6 +15,7 @@ const { values } = parseArgs({
   options: {
     dir: {
       type: 'string',
+      default: '~/Dropbox/memex'
     },
   },
   strict: true,
@@ -28,7 +29,7 @@ function resolveTildePath(filePath: string) {
   return path.join(os.homedir(), filePath.slice(1));
 }
 
-let contentDir: string | undefined = resolveTildePath(values.dir ?? "~/Dropbox/memex")
+let contentDir: string | undefined = resolveTildePath(values.dir)
 
 type Asset = Tagged<{
   path: string;      // Path to the asset file on the server
@@ -293,7 +294,7 @@ const server = serve({
   development: process.env.NODE_ENV !== "production",
 });
 
-console.log(`🚀 Server running at ${server.url}`);
+console.log(`🚀 Server running at ${server.url} in ${contentDir}`);
 
 /**
  * Features:
