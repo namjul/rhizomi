@@ -8,6 +8,18 @@ import { compile, optimize } from '@tailwindcss/node'
 import { Scanner } from '@tailwindcss/oxide'
 import type { ReactNode } from "react";
 import { Page } from './components/Page';
+import { parseArgs } from "util";
+
+const { values } = parseArgs({
+  args: Bun.argv,
+  options: {
+    dir: {
+      type: 'string',
+    },
+  },
+  strict: true,
+  allowPositionals: true,
+});
 
 function resolveTildePath(filePath: string) {
   if (!filePath || !filePath.startsWith('~')) {
@@ -16,7 +28,7 @@ function resolveTildePath(filePath: string) {
   return path.join(os.homedir(), filePath.slice(1));
 }
 
-let contentDir: string | undefined = resolveTildePath("~/Dropbox/memex")
+let contentDir: string | undefined = resolveTildePath(values.dir ?? "~/Dropbox/memex")
 
 type Asset = Tagged<{
   path: string;      // Path to the asset file on the server
