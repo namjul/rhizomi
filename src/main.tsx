@@ -288,6 +288,7 @@ const server = serve({
     "/styles.css": new Response(await tailwindcss()),
     "/main.js": buildFrontend()
   },
+  port: 8088,
   fetch: lookup(),
   development: process.env.NODE_ENV !== "production",
 });
