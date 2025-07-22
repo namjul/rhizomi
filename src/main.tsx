@@ -286,7 +286,9 @@ function buildFrontend() {
 
 const server = serve({
   routes: {
-    "/styles.css": new Response(await tailwindcss()),
+    "/styles.css": new Response(await tailwindcss(), {
+      headers: { "Content-Type": "text/css" }
+    }),
     "/main.js": buildFrontend()
   },
   port: 8088,
